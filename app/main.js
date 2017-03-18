@@ -4,6 +4,9 @@ var gameState = new GameState({state: initialState});
 var cpuBoard = new Board({autoDeploy: true, name: "cpu"});
 var playerBoard = new Board({autoDeploy: SKIPSETUP, name: "player"});
 var cursor = new Cursor();
+var GRAB_THRESHOLD = 0.95;
+var PINCH_THRESHOLD = 0.95; 
+var CURSOR_OFFSET = [0, 100]; 
 
 // UI SETUP
 setupUserInterface();
@@ -14,6 +17,7 @@ var selectedTile = false;
 // grabbedShip/Offset: The ship and offset if player is currently manipulating a ship
 var grabbedShip = false;
 var grabbedOffset = [0, 0];
+var lastGrabbedLoc = [0, 0];
 
 // isGrabbing: Is the player's hand currently in a grabbing pose
 var isGrabbing = false;
@@ -24,41 +28,66 @@ Leap.loop({ hand: function(hand) {
   // Clear any highlighting at the beginning of the loop
   unhighlightTiles();
 
-  // TODO: 4.1, Moving the cursor with Leap data
+  // 4.1, Moving the cursor with Leap data
   // Use the hand data to control the cursor's screen position
-  var cursorPosition = [0, 0];
+  var pointer = hand.pointables[1]
+  var cursorPosition =  pointer.screenPosition().slice(0,2);
   cursor.setScreenPosition(cursorPosition);
 
-  // TODO: 4.1
+  // 4.1
   // Get the tile that the player is currently selecting, and highlight it
   //selectedTile = ?
+  var selectedTile = getIntersectingTile(cursorPosition);
+  if (selectedTile) {
+    highlightTile(selectedTile, Colors.GREEN)
+  }
+
 
   // SETUP mode
   if (gameState.get('state') == 'setup') {
     background.setContent("<h1>battleship</h1><h3 style='color: #7CD3A2;'>deploy ships</h3>");
-    // TODO: 4.2, Deploying ships
+    // 4.2, Deploying ships
     //  Enable the player to grab, move, rotate, and drop ships to deploy them
 
     // First, determine if grabbing pose or not
-    isGrabbing = false;
+    if (hand.grabStrength > GRAB_THRESHOLD || hand.pinchStrength > PINCH_THRESHOLD) {
+      isGrabbing = true;
+    } else {
+      isGrabbing = false;
+    }
+
+    var grabbedShipDict = getIntersectingShipAndOffset(cursorPosition); 
 
     // Grabbing, but no selected ship yet. Look for one.
-    // TODO: Update grabbedShip/grabbedOffset if the user is hovering over a ship
+    // Update grabbedShip/grabbedOffset if the user is hovering over a ship
     if (!grabbedShip && isGrabbing) {
+      grabbedShip = grabbedShipDict.ship;
+      grabbedOffset = grabbedShipDict.offset;
     }
 
     // Has selected a ship and is still holding it
-    // TODO: Move the ship
+    // Move the ship
     else if (grabbedShip && isGrabbing) {
-      grabbedShip.setScreenPosition([0,0]);
-      grabbedShip.setScreenRotation(0);
+      var newPosition = [cursorPosition[0] - grabbedOffset[0], cursorPosition[1] - grabbedOffset[1]]; 
+      grabbedShip.setScreenPosition(newPosition);
+      grabbedShip.setScreenRotation(-1 * hand.roll());
+      lastGrabbedLoc = newPosition;
     }
 
     // Finished moving a ship. Release it, and try placing it.
-    // TODO: Try placing the ship on the board and release the ship
+    // Try placing the ship on the board and release the ship
     else if (grabbedShip && !isGrabbing) {
+      placeShip(grabbedShip); 
+      grabbedShip = false; 
+      grabbedOffset = [0,0];
+
     }
   }
+
+
+
+
+
 
   // PLAYING or END GAME so draw the board and ships (if player's board)
   // Note: Don't have to touch this code
@@ -120,11 +149,13 @@ var processSpeech = function(transcript) {
     return false;
   };
 
+  console.log("transcript: " + transcript); 
+
   var processed = false;
   if (gameState.get('state') == 'setup') {
-    // TODO: 4.3, Starting the game with speech
+    // 4.3, Starting the game with speech
     // Detect the 'start' command, and start the game if it was said
-    if (false) {
+    if (userSaid(transcript, ['start'])) {
       gameState.startGame();
       processed = true;
     }
