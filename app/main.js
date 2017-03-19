@@ -4,8 +4,8 @@ var gameState = new GameState({state: initialState});
 var cpuBoard = new Board({autoDeploy: true, name: "cpu"});
 var playerBoard = new Board({autoDeploy: SKIPSETUP, name: "player"});
 var cursor = new Cursor();
-var GRAB_THRESHOLD = 0.95;
-var PINCH_THRESHOLD = 0.95; 
+var GRAB_THRESHOLD = 0.99;
+var PINCH_THRESHOLD = 0.99; 
 var CURSOR_OFFSET = [0, 100]; 
 
 // UI SETUP
@@ -36,8 +36,7 @@ Leap.loop({ hand: function(hand) {
 
   // 4.1
   // Get the tile that the player is currently selecting, and highlight it
-  //selectedTile = ?
-  var selectedTile = getIntersectingTile(cursorPosition);
+  selectedTile = getIntersectingTile(cursorPosition);
   if (selectedTile) {
     highlightTile(selectedTile, Colors.GREEN)
   }
@@ -140,6 +139,7 @@ Leap.loop({ hand: function(hand) {
 // Output: 
 //    processed, a boolean indicating whether the system reacted to the speech or not
 var processSpeech = function(transcript) {
+  console.log("hello"); 
   // Helper function to detect if any commands appear in a string
   var userSaid = function(str, commands) {
     for (var i = 0; i < commands.length; i++) {
@@ -149,11 +149,24 @@ var processSpeech = function(transcript) {
     return false;
   };
 
+  // Possible fix to bug posted on piazza: 
+  // var userSaid = function(str, commands) {
+  //   commands = commands.split(" ").filter(function(word) {
+  //     return word.length > 0;
+  //   });
+  //   for (var i = 0; i < commands.length; i++) {
+  //     if (str.indexOf(commands[i]) > -1)
+  //       return true;
+  //   }
+  //   return false;
+  // };
+
+
   console.log("transcript: " + transcript); 
 
   var processed = false;
   if (gameState.get('state') == 'setup') {
-    // 4.3, Starting the game with speech
+    // TODO: 4.3, Starting the game with speech
     // Detect the 'start' command, and start the game if it was said
     if (userSaid(transcript, ['start'])) {
       gameState.startGame();
@@ -165,7 +178,7 @@ var processSpeech = function(transcript) {
     if (gameState.isPlayerTurn()) {
       // TODO: 4.4, Player's turn
       // Detect the 'fire' command, and register the shot if it was said
-      if (false) {
+      if (userSaid(transcript, ['fire'])) {
         registerPlayerShot();
 
         processed = true;
@@ -207,15 +220,24 @@ var registerPlayerShot = function() {
     // Game over
     if (result.isGameOver) {
       gameState.endGame("player");
+      generateSpeech("game over"); 
       return;
     }
     // Sunk ship
     else if (result.sunkShip) {
       var shipName = result.sunkShip.get('type');
+
+      generateSpeech("you sunk my " + shipName); 
     }
     // Hit or miss
     else {
       var isHit = result.shot.get('isHit');
+
+      if (isHit) {
+        generateSpeech("hit"); 
+      } else {
+        generateSpeech("miss"); 
+      }
     }
 
     if (!result.isGameOver) {
