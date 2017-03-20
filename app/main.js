@@ -7,6 +7,14 @@ var cursor = new Cursor();
 var GRAB_THRESHOLD = 0.99;
 var PINCH_THRESHOLD = 0.99; 
 var CURSOR_OFFSET = [0, 100]; 
+var cpuMissPhrases = ['G G', 'F me', 'F M L', 'Fudge', 'Poop'];
+var cpuHitPhrases = ['Yah man', 'Yay', 'Excellent', 'Fab'];
+var cpuGameOverPhrases = ['G G no re'];
+var playerHitPhrases = ['hit. ', 'hit. What a scumbag.', 'hit. Feels bad bruh.', 'hit. Sigh.'];
+var playerMissPhrases = ['miss. G G bruh.', 'miss. Oh so sad.', 'Better luck next time!'];
+var playerGameOverPhrases = ['You win. G G no re'];
+var playerLiedPhrases = ['Come again?', 'Are you sure, bruh?', "don't lie, bruh", 'nah man.'];
+var lastshot = false;
 
 // UI SETUP
 setupUserInterface();
@@ -189,8 +197,29 @@ var processSpeech = function(transcript) {
       // TODO: 4.5, CPU's turn
       // Detect the player's response to the CPU's shot: hit, miss, you sunk my ..., game over
       // and register the CPU's shot if it was said
-      if (false) {
-        var response = "playerResponse";
+      transcript = transcript.toLowerCase();
+      if (userSaid(transcript, ['hit'])) {
+        var response = "hit";
+        registerCpuShot(response);
+        console.log('process speech hit');
+
+        processed = true;
+      }
+      else if (userSaid(transcript, ['miss'])){
+        var response = "miss";
+        registerCpuShot(response);
+        console.log('process speech miss');
+
+        processed = true;
+      }
+      else if (userSaid(transcript, ['you sunk my '])){
+        var response = "you sunk my";
+        registerCpuShot(response);
+
+        processed = true;
+      }
+      else if (userSaid(transcript, ['game over'])){
+        var response = "game over";
         registerCpuShot(response);
 
         processed = true;
@@ -220,7 +249,7 @@ var registerPlayerShot = function() {
     // Game over
     if (result.isGameOver) {
       gameState.endGame("player");
-      generateSpeech("game over"); 
+      generateSpeech(randomPhrase(playerGameOverPhrases)); 
       return;
     }
     // Sunk ship
@@ -234,15 +263,15 @@ var registerPlayerShot = function() {
       var isHit = result.shot.get('isHit');
 
       if (isHit) {
-        generateSpeech("hit"); 
+        generateSpeech(randomPhrase(playerHitPhrases)); 
       } else {
-        generateSpeech("miss"); 
+        generateSpeech(randomPhrase(playerMissPhrases)); 
       }
     }
 
     if (!result.isGameOver) {
       // TODO: Uncomment nextTurn to move onto the CPU's turn
-      // nextTurn();
+      nextTurn();
     }
   }
 };
@@ -253,11 +282,17 @@ var cpuShot;
 var generateCpuShot = function() {
   // Generate a random CPU shot
   cpuShot = gameState.getCpuShot();
+  console.log("cpuShot: " + cpuShot);
   var tile = cpuShot.get('position');
   var rowName = ROWNAMES[tile.row]; // e.g. "A"
   var colName = COLNAMES[tile.col]; // e.g. "5"
 
-  // TODO: Generate speech and visual cues for CPU shot
+  generateSpeech("fire " + rowName + ' ' + colName);
+  blinkTile(tile);
+};
+
+var randomPhrase = function(phraseList){
+  return phraseList[Math.floor(Math.random()*phraseList.length)];
 };
 
 // TODO: 4.5, CPU's turn
@@ -265,8 +300,14 @@ var generateCpuShot = function() {
 // E.g. CPU takes shot, then player responds with "hit" ==> CPU could then say "AWESOME!"
 var registerCpuShot = function(playerResponse) {
   // Cancel any blinking
-  unblinkTiles();
-  var result = playerBoard.fireShot(cpuShot);
+  //unblinkTiles();
+  var result;
+  if (!lastshot) {
+    result = playerBoard.fireShot(cpuShot);
+  } else {
+    result = lastshot;
+  }
+  var playerlied = false;
 
   // NOTE: Here we are using the actual result of the shot, rather than the player's response
   // In 4.6, you may experiment with the CPU's response when the player is not being truthful!
@@ -274,21 +315,60 @@ var registerCpuShot = function(playerResponse) {
   // TODO: Generate CPU feedback in three cases
   // Game over
   if (result.isGameOver) {
-    gameState.endGame("cpu");
-    return;
+    if (playerResponse == "game over"){
+      unblinkTiles();
+      gameState.endGame("cpu");
+      generateSpeech('CPU win');
+      lastshot = false;
+      return;
+    } else {
+      playerlied = true;
+      generateSpeech(randomPhrase(playerLiedPhrases));
+      lastshot = result;
+    }
   }
   // Sunk ship
   else if (result.sunkShip) {
-    var shipName = result.sunkShip.get('type');
+    if (playerResponse.includes('sunk')){
+      unblinkTiles();
+      var shipName = result.sunkShip.get('type');
+      generateSpeech(randomPhrase(cpuHitPhrases));
+      lastshot = false;
+    } else {
+      playerlied = true;
+      generateSpeech(randomPhrase(playerLiedPhrases));
+      lastshot = result;
+    }
   }
   // Hit or miss
   else {
     var isHit = result.shot.get('isHit');
+    if (isHit) {
+      if (playerResponse == 'hit') {
+        unblinkTiles();
+        generateSpeech(randomPhrase(cpuHitPhrases));
+        lastshot = false;
+      } else {
+        playerlied = true;
+        generateSpeech(randomPhrase(playerLiedPhrases));
+        lastshot = result;
+      }
+    } else {
+      if (playerResponse == 'miss') {
+        unblinkTiles();
+        generateSpeech(randomPhrase(cpuMissPhrases));
+        lastshot = false;
+      } else {
+        playerlied = true;
+        generateSpeech(randomPhrase(playerLiedPhrases));
+        lastshot = result;
+      }
+    }
   }
 
-  if (!result.isGameOver) {
+  if (!result.isGameOver && !playerlied) {
     // TODO: Uncomment nextTurn to move onto the player's next turn
-    // nextTurn();
+    nextTurn();
   }
 };
 
