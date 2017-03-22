@@ -77,16 +77,21 @@ Leap.loop({ hand: function(hand) {
     else if (grabbedShip && isGrabbing) {
       var newPosition = [cursorPosition[0] - grabbedOffset[0], cursorPosition[1] - grabbedOffset[1]]; 
       grabbedShip.setScreenPosition(newPosition);
-      grabbedShip.setScreenRotation(-1 * hand.roll());
-      lastGrabbedLoc = newPosition;
+      grabbedShip.setScreenRotation(-0.5 * hand.palmNormal().roll());
+      if (Math.max(hand.palmVelocity()) > 0.2){
+        lastGrabbedLoc = newPosition;
+        console.log('hello');
+      }
     }
 
     // Finished moving a ship. Release it, and try placing it.
     // Try placing the ship on the board and release the ship
     else if (grabbedShip && !isGrabbing) {
+      grabbedShip.setScreenPosition(lastGrabbedLoc);
       placeShip(grabbedShip); 
       grabbedShip = false; 
       grabbedOffset = [0,0];
+      lastGrabbedLoc = [0,0];
 
     }
   }
